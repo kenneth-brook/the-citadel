@@ -1,0 +1,22 @@
+# Virtual environment
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Job outputs
+jobs/
+logs/
+training_data/
+
+# Local configs that shouldn’t hit GitHub
+*.env
+config.local.json
+
+# VSCode nonsense
+.vscode/
+
+# OS junk
+Thumbs.db
+.DS_Store
