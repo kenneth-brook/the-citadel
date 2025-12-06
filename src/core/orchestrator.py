@@ -23,10 +23,10 @@ class CitadelOrchestrator:
             created_at=datetime.utcnow(),
         )
 
-        # 🔥 Pipeline v2: Architect -> Code Writer
         steps = [
             JobStep(step_name="plan", agent="architect", status="pending"),
             JobStep(step_name="code_write", agent="code_writer", status="pending"),
+            JobStep(step_name="test", agent="tester", status="pending"),
         ]
 
         state = JobState(job=job, steps=steps)
@@ -40,36 +40,62 @@ class CitadelOrchestrator:
 
         return state
 
-    def run_job(self, state: JobState) -> JobState:
+    def run_job(self, state: JobState):
         job_dir = self.jobs_dir / state.job.job_id
 
         for step in state.steps:
-            if step.status == "completed":
-                continue
 
-            step.started_at = datetime.utcnow()
-            step.status = "running"
-
+            # ARCHITECT AGENT
             if step.agent == "architect":
+                from agents.architect import ArchitectAgent
                 agent = ArchitectAgent()
+
+                step.started_at = datetime.utcnow()
+                step.status = "running"
+
                 state = agent.run(state, job_dir)
 
-            elif step.agent == "code_writer":
-                agent = CodeWriterAgent()
-                state = agent.run(state, job_dir)
-
-            else:
-                # Unknown agent – mark as failed but don't crash the whole job
-                step.status = "failed"
+                step.status = "completed"
                 step.finished_at = datetime.utcnow()
-                step.log = f"Unknown agent: {step.agent}"
-                continue
 
-            step.status = "completed"
-            step.finished_at = datetime.utcnow()
+            # CODE WRITER AGENT
+            elif step.agent == "code_writer":
+                from agents.code_writer import CodeWriterAgent
+                agent = CodeWriterAgent()
 
+                step.started_at = datetime.utcnow()
+                step.status = "running"
+
+                state = agent.run(state, job_dir)
+
+                step.status = "completed"
+                step.finished_at = datetime.utcnow()
+
+            # TESTER AGENT  ← **NEW BLOCK**
+            elif step.agent == "tester":
+                from agents.tester import TesterAgent
+                agent = TesterAgent()
+
+                step.started_at = datetime.utcnow()
+                step.status = "running"
+
+                state = agent.run(state, job_dir)
+
+                # TesterAgent itself should update success/failure in step.log
+                step.status = "completed"
+                step.finished_at = datetime.utcnow()
+
+            # UNKNOWN AGENT — fail safely
+            else:
+                step.status = "failed"
+                step.log = f"Unknown agent type: {step.agent}"
+
+        # Save final job state
         (job_dir / "job_state.json").write_text(
-            state.model_dump_json(indent=2), encoding="utf-8"
+            state.model_dump_json(indent=2),
+            encoding="utf-8"
         )
 
         return state
+
+
